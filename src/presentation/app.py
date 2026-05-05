@@ -118,12 +118,24 @@ page = st.sidebar.radio("Navigation", ["📊 Dashboard", "⚡ Live Feed", "🗄�
 
 # --- Page: Dashboard ---
 if page == "📊 Dashboard":
-    col_title, col_refresh = st.columns([3, 1])
+    col_title, col_refresh, col_reset = st.columns([2, 1, 1])
     with col_title:
         st.markdown('<h1 class="gradient-text">Customer Insights & Pressure Radar</h1>', unsafe_allow_html=True)
     with col_refresh:
         st.write("") # spacing
         if st.button("🔄 Refresh Data", use_container_width=True):
+            load_data.clear()
+            load_alerts.clear()
+            st.rerun()
+    with col_reset:
+        st.write("") # spacing
+        if st.button("🗑️ Reset All Data", type="primary", use_container_width=True):
+            data_path = settings.PROCESSED_DATA_DIR / "reviews.jsonl"
+            alerts_path = settings.ALERTS_DIR / "alerts.jsonl"
+            if data_path.exists():
+                data_path.unlink()
+            if alerts_path.exists():
+                alerts_path.unlink()
             load_data.clear()
             load_alerts.clear()
             st.rerun()
