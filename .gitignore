@@ -1,8 +1,14 @@
 venv/
+.venv/
 __pycache__/
 *.pyc
 .env
+.env.local
 data/processed/
 data/alerts/
+data/raw/
+logs/
+*.log
+.model_cache/
 .pytest_cache/
 .DS_Store

@@ -3,15 +3,11 @@ import logging
 from src.processing.pipeline import IntelligencePipeline
 from config import settings
 
-# Setup basic logging
-logging.basicConfig(
-    level=getattr(logging, "INFO"), # Ideally read from settings
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    handlers=[
-        logging.FileHandler(settings.LOG_FILE),
-        logging.StreamHandler()
-    ]
-)
+from config.logging_config import setup_logging
+
+# Setup production logging
+setup_logging()
+logger = logging.getLogger("CLI")
 
 def main():
     parser = argparse.ArgumentParser(description="AI Customer Intelligence Engine CLI")

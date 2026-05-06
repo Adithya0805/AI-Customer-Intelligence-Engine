@@ -1,61 +1,89 @@
 # AI Customer Intelligence Engine
 
-A production-ready AI tool that transforms raw, unstructured web data into actionable business insights. Features a 4-layer architecture with a unique **Emerging Issue Detector (Pressure Feature)**.
+🚀 **A Production-Ready SaaS Platform for Real-Time Sentiment & Trend Intelligence**
 
-## Architecture
-1. **Ingestion Layer**: Modular scraper (httpx/Playwright + BeautifulSoup).
-2. **Processing Layer**: Cleans text, handles Tamil-English code-switching via transliteration.
-3. **Intelligence Layer**: Sentiment analysis (RoBERTa) and sliding-window Pressure detection.
-4. **Presentation Layer**: Streamlit dashboard for real-time visualization.
+Transform customer feedback from public review sources into actionable business insights using state-of-the-art NLP and LLMs.
 
-## Setup
+---
 
-1. Create a virtual environment:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
+## ✨ Key Features
 
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   playwright install chromium
-   ```
+-   **🎯 Multi-Source Ingestion:** Scrape reviews from URLs, upload CSVs, or paste raw text.
+-   **🎭 Sentiment Intelligence:** Uses RoBERTa-based NLP to classify sentiment with high precision.
+-   **🔥 Pressure Radar:** Automatically detects trending complaints before they become PR crises.
+-   **💎 Aspect Intelligence (New):** LLM-powered extraction of specific business aspects (e.g., Price, Service) and their sentiment.
+-   **🤖 Executive Briefs:** LLM-powered (Gemini) summaries of key business trends.
+-   **📡 Auto-Sync Watchlist (New):** Background scheduler to monitor competition or brand reviews 24/7.
+-   **📊 Premium Dashboard:** Stunning glassmorphism UI with real-time metrics, trend charts, and word clouds.
+-   **☁️ Cloud Native:** Seamlessly integrated with Supabase for persistent data and Hugging Face for deployment.
 
-3. (Optional) Set environment variables:
-   Copy `.env.example` to `.env` and fill in your keys if using external APIs.
+---
 
-## Usage
+## 🏗️ Architecture
 
-### Run the Dashboard
+```text
+├── config/              # Centralized settings & logging
+├── data/
+│   └── migrations/      # Supabase SQL migrations
+├── src/
+│   ├── ingestion/       # Scrapers (httpx, BeautifulSoup)
+│   ├── processing/      # Pipeline orchestration
+│   ├── intelligence/    # NLP Models (RoBERTa, Gemini)
+│   ├── database/        # Supabase Client (Singleton Pattern)
+│   ├── automation/      # APScheduler Workers
+│   └── presentation/    # Streamlit Glassmorphism UI
+└── tests/               # Pytest Suite (Mocked for CI)
+```
+
+---
+
+## 🛠️ Quick Start
+
+### 1. Clone & Install
+```bash
+git clone https://github.com/Adithya0805/AI-Customer-Intelligence-Engine.git
+cd AI-Customer-Intelligence-Engine
+pip install -r requirements.txt
+```
+
+### 2. Configure Environment
+Create a `.env` file from `.env.example`:
+```env
+SUPABASE_URL=your_url
+SUPABASE_KEY=your_key
+SUPABASE_SERVICE_KEY=your_service_role_key
+GEMINI_API_KEY=your_gemini_key
+ENVIRONMENT=production
+```
+
+### 3. Run Locally
 ```bash
 streamlit run src/presentation/app.py
 ```
 
-### Run Pipeline via CLI
-```bash
-python main.py --url "https://example.com/reviews" --source generic
-```
+---
 
-## Folder Structure
-- `src/`: Core application logic (ingestion, processing, intelligence, presentation).
-- `data/`: Local data storage (`raw/`, `processed/`, `alerts/`).
-- `config/`: Application settings.
-- `tests/`: Unit tests.
-## Deployment (Production Hosting)
+## 🚀 Roadmap
 
-To make this tool available publicly for anyone to use, you have two excellent free options:
+### Phase 1: Stable MVP (Completed)
+- [x] Hardened generic scraper with retries
+- [x] RoBERTa sentiment analysis integration
+- [x] Glassmorphism dashboard foundation
+- [x] Basic Supabase persistence
 
-### Option 1: Hugging Face Spaces (Recommended for ML apps)
-Since this app uses HuggingFace `transformers` (RoBERTa), Hugging Face Spaces is the most stable free host.
-1. Create a free account at [Hugging Face](https://huggingface.co/).
-2. Click **New Space** -> Select **Streamlit** as the Space SDK.
-3. You can connect your GitHub repository directly, or push your code using Git.
-4. The space will automatically install `requirements.txt` and run `app.py`.
+### Phase 2: Advanced Intelligence (Current)
+- [x] **Aspect-Based Sentiment:** Extract deep insights (Price, Support, etc.)
+- [x] **Auto-Sync Scheduler:** 24/7 monitoring via APScheduler
+- [x] **Adaptive Clustering:** Silhouette-score optimized topic grouping
+- [x] **Executive Brief History:** Persistent AI summaries in database
 
-### Option 2: Streamlit Community Cloud (Easiest)
-1. Go to [share.streamlit.io](https://share.streamlit.io/) and log in with your GitHub account.
-2. Click **New app** and select your repository (`Adithya0805/AI-Customer-Intelligence-Engine`).
-3. Set the Main file path to `src/presentation/app.py`.
-4. Click **Deploy!**
-*(Note: Streamlit cloud has a 1GB RAM limit on the free tier, which might be tight when the AI model loads into memory).*
+### Phase 3: Enterprise Scale (Upcoming)
+- [ ] Multi-tenant authentication (Clerk/Supabase Auth)
+- [ ] Multi-source connectors (Amazon, Play Store, Twitter)
+- [ ] Custom LLM training for industry-specific sentiment
+- [ ] Exportable executive PDF reports
+
+---
+
+## 🛡️ License
+MIT License - See [LICENSE](LICENSE) for details.

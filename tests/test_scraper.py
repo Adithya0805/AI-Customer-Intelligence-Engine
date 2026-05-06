@@ -1,6 +1,11 @@
 import pytest
+from unittest.mock import MagicMock, patch
 from src.ingestion.cleaner import ReviewCleaner
 from src.ingestion.scraper import GenericScraper
+
+@pytest.fixture
+def mock_scraper():
+    return GenericScraper()
 
 def test_cleaner_remove_html():
     cleaner = ReviewCleaner()
@@ -13,6 +18,27 @@ def test_cleaner_handle_tamil():
     tamil_text = "வணக்கம்"
     result = cleaner.handle_multilingual(tamil_text)
     assert result != tamil_text # Transliteration should change the string
+
+def test_parse_from_text(mock_scraper):
+    text = "Great product!\nWorst service ever.\nIt was okay."
+    reviews = mock_scraper.parse_from_text(text)
+    assert len(reviews) == 3
+    assert reviews[0].text == "Great product!"
+    assert reviews[1].text == "Worst service ever."
+
+def test_scrape_logic(mock_scraper):
+    with patch('httpx.Client') as mock_client:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = "<html><body><div class='review'>Great!</div></body></html>"
+        
+        mock_client_instance = mock_client.return_value.__enter__.return_value
+        mock_client_instance.get.return_value = mock_response
+        
+        # Test a generic scrape
+        reviews = mock_scraper.scrape("https://example.com")
+        # Since it's heuristic based, we just check it doesn't crash
+        assert isinstance(reviews, list)
 
 def test_scraper_generic_parsing():
     scraper = GenericScraper()
