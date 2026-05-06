@@ -84,22 +84,32 @@ def get_pipeline():
 
 @st.cache_data(ttl=10)
 def load_data():
-    data_path = settings.PROCESSED_DATA_DIR / "reviews.jsonl"
-    if data_path.exists():
-        df = pd.read_json(data_path, lines=True)
-        df['date'] = pd.to_datetime(df['date'])
-        return df
+    try:
+        from src.database.client import get_supabase_client
+        supabase = get_supabase_client()
+        response = supabase.table('reviews').select('*').order('date', desc=True).limit(5000).execute()
+        if response.data:
+            df = pd.DataFrame(response.data)
+            df['date'] = pd.to_datetime(df['date'])
+            return df
+    except Exception as e:
+        st.error(f"Error loading data from Supabase: {e}")
     return pd.DataFrame()
 
 @st.cache_data(ttl=10)
 def load_alerts():
-    alerts_path = settings.ALERTS_DIR / "alerts.jsonl"
-    if alerts_path.exists():
-        df = pd.read_json(alerts_path, lines=True)
-        # Keep latest alert per keyword
-        if not df.empty:
+    try:
+        from src.database.client import get_supabase_client
+        supabase = get_supabase_client()
+        response = supabase.table('alerts').select('*').order('timestamp', desc=True).limit(1000).execute()
+        if response.data:
+            df = pd.DataFrame(response.data)
+            df['timestamp'] = pd.to_datetime(df['timestamp'])
+            # Keep latest alert per keyword
             df = df.sort_values('timestamp').drop_duplicates('keyword', keep='last')
-        return df
+            return df
+    except Exception as e:
+        st.error(f"Error loading alerts from Supabase: {e}")
     return pd.DataFrame()
 
 # Initialize session state variables for background thread
@@ -114,7 +124,7 @@ pipeline = get_pipeline()
 
 # --- Sidebar ---
 st.sidebar.title("🧠 Intelligence Engine")
-page = st.sidebar.radio("Navigation", ["📊 Dashboard", "⚡ Live Feed", "🗄️ Raw Data", "🧪 Analyze Studio"])
+page = st.sidebar.radio("Navigation", ["📊 Dashboard", "⚡ Live Feed", "🗄️ Raw Data", "🧪 Analyze Studio", "🕒 Watchlist"])
 
 # --- Page: Dashboard ---
 if page == "📊 Dashboard":
@@ -130,12 +140,14 @@ if page == "📊 Dashboard":
     with col_reset:
         st.write("") # spacing
         if st.button("🗑️ Reset All Data", type="primary", use_container_width=True):
-            data_path = settings.PROCESSED_DATA_DIR / "reviews.jsonl"
-            alerts_path = settings.ALERTS_DIR / "alerts.jsonl"
-            if data_path.exists():
-                data_path.unlink()
-            if alerts_path.exists():
-                alerts_path.unlink()
+            try:
+                from src.database.client import get_supabase_client
+                supabase = get_supabase_client()
+                # Empty tables
+                supabase.table('reviews').delete().neq('id', '00000000-0000-0000-0000-000000000000').execute()
+                supabase.table('alerts').delete().neq('id', '00000000-0000-0000-0000-000000000000').execute()
+            except Exception as e:
+                st.error(f"Error clearing data: {e}")
             load_data.clear()
             load_alerts.clear()
             st.rerun()
@@ -162,7 +174,8 @@ if page == "📊 Dashboard":
         
         with col_charts1:
             st.subheader("📈 Sentiment Trend")
-            recent_df = df[df['date'] >= pd.Timestamp.now() - pd.Timedelta(days=30)].copy()
+            tz = df['date'].dt.tz
+            recent_df = df[df['date'] >= pd.Timestamp.now(tz=tz) - pd.Timedelta(days=30)].copy()
             if not recent_df.empty:
                 # Decide grouping: if span is < 2 days, group by hour, else by day
                 time_span = recent_df['date'].max() - recent_df['date'].min()
@@ -447,6 +460,12 @@ elif page == "🧪 Analyze Studio":
             # --- Results Panel ---
             proc_df = pd.DataFrame(res['processed_data'])
             
+            if 'executive_summary' in res and res['executive_summary'] and not str(res['executive_summary']).startswith("⚠️"):
+                st.markdown("### 🤖 AI Executive Brief")
+                st.info(res['executive_summary'])
+            elif 'executive_summary' in res and str(res['executive_summary']).startswith("⚠️"):
+                st.warning(res['executive_summary'])
+
             st.markdown("### 📊 Summary Dashboard")
             col1, col2, col3 = st.columns(3)
             with col1:
@@ -503,3 +522,62 @@ elif page == "🧪 Analyze Studio":
                 st.session_state.pipeline_result = None
                 st.session_state.pipeline_messages = []
                 st.rerun()
+
+elif page == "🕒 Watchlist":
+    st.markdown('<h1 class="gradient-text">Automated Watchlist</h1>', unsafe_allow_html=True)
+    st.markdown("Add URLs to automatically scrape and analyze in the background.")
+    
+    with st.form("add_watchlist_form"):
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            new_url = st.text_input("Product or App URL")
+            company_name = st.text_input("Company/Product Name")
+        with col2:
+            st.write("") # spacing
+            st.write("") # spacing
+            submitted = st.form_submit_button("➕ Track URL", use_container_width=True)
+            
+        if submitted and new_url:
+            try:
+                from src.database.client import get_supabase_client
+                supabase = get_supabase_client()
+                supabase.table('watchlist').insert({
+                    "url": new_url,
+                    "company_name": company_name
+                }).execute()
+                st.success(f"Added {company_name} to Watchlist!")
+                time.sleep(1)
+                st.rerun()
+            except Exception as e:
+                st.error(f"Failed to add URL. It might already exist. Error: {e}")
+
+    st.markdown("---")
+    st.subheader("Currently Tracking")
+    try:
+        from src.database.client import get_supabase_client
+        supabase = get_supabase_client()
+        response = supabase.table('watchlist').select('*').order('created_at', desc=True).execute()
+        if response.data:
+            for row in response.data:
+                with st.container():
+                    col_name, col_url, col_status, col_action = st.columns([2, 3, 2, 1])
+                    with col_name:
+                        st.write(f"**{row.get('company_name', 'Unknown')}**")
+                    with col_url:
+                        st.write(row.get('url'))
+                    with col_status:
+                        scraped = row.get('last_scraped_at')
+                        if scraped:
+                            scraped_str = scraped.split('.')[0].replace('T', ' ')
+                            st.caption(f"Last Scraped: {scraped_str}")
+                        else:
+                            st.caption("Last Scraped: Never")
+                    with col_action:
+                        if st.button("❌ Remove", key=f"del_{row['id']}"):
+                            supabase.table('watchlist').delete().eq('id', row['id']).execute()
+                            st.rerun()
+                    st.markdown("---")
+        else:
+            st.info("Your watchlist is empty.")
+    except Exception as e:
+        st.error(f"Error loading watchlist: {e}")

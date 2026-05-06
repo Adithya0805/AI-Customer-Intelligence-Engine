@@ -53,9 +53,10 @@ class PressureDetector:
         if negative_reviews.empty:
             return []
 
-        now = datetime.now()
-        recent_cutoff = now - timedelta(days=self.recent_days)
-        baseline_cutoff = now - timedelta(days=self.baseline_days)
+        tz = reviews_df['date'].dt.tz
+        now = pd.Timestamp.now(tz=tz)
+        recent_cutoff = now - pd.Timedelta(days=self.recent_days)
+        baseline_cutoff = now - pd.Timedelta(days=self.baseline_days)
 
         recent_df = negative_reviews[negative_reviews['date'] >= recent_cutoff]
         baseline_df = negative_reviews[(negative_reviews['date'] >= baseline_cutoff) & (negative_reviews['date'] < recent_cutoff)]

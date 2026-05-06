@@ -10,6 +10,7 @@ from src.ingestion.cleaner import ReviewCleaner
 from src.intelligence.analyzer import SentimentAnalyzer
 from src.intelligence.pressure import PressureDetector
 from src.intelligence.categorizer import TopicCategorizer
+from src.intelligence.summarizer import LLMSummarizer
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -22,6 +23,7 @@ class IntelligencePipeline:
         self.scraper = GenericScraper()
         self.cleaner = ReviewCleaner()
         self.analyzer = None
+        self.summarizer = LLMSummarizer()
         self.pressure_detector = PressureDetector(
             recent_days=settings.PRESSURE_RECENT_DAYS,
             baseline_days=settings.PRESSURE_BASELINE_DAYS,
@@ -100,15 +102,18 @@ class IntelligencePipeline:
                 "processed_at": datetime.now().isoformat()
             })
 
-        if progress_callback: progress_callback("Saving processed data to storage...")
-        self._save_jsonl(processed_data, settings.PROCESSED_DATA_DIR / "reviews.jsonl")
+        if progress_callback: progress_callback("Saving processed data to Supabase...")
+        self._save_to_supabase("reviews", processed_data, progress_callback)
 
         if progress_callback: progress_callback("Running Pressure Detector (Emerging Issues)...")
-        historical_df = self._load_historical_data(settings.PROCESSED_DATA_DIR / "reviews.jsonl")
+        historical_df = self._load_historical_data()
         alerts = self.pressure_detector.detect(historical_df)
         
         if alerts:
-            self._save_jsonl(alerts, settings.ALERTS_DIR / "alerts.jsonl")
+            self._save_to_supabase("alerts", alerts, progress_callback)
+
+        if progress_callback: progress_callback("Generating AI Executive Summary...")
+        summary = self.summarizer.generate_executive_summary(processed_data, cluster_results['clusters'], alerts)
 
         logger.info("Pipeline completed successfully.")
         return {
@@ -117,7 +122,8 @@ class IntelligencePipeline:
             "alerts_generated": len(alerts),
             "alerts": alerts,
             "processed_data": processed_data,
-            "clusters": cluster_results['clusters']
+            "clusters": cluster_results['clusters'],
+            "executive_summary": summary
         }
 
     def run(self, url: str, progress_callback=None) -> Dict:
@@ -141,16 +147,26 @@ class IntelligencePipeline:
         raw_reviews = GenericScraper.parse_from_csv(df, text_col)
         return self._process_reviews(raw_reviews, progress_callback)
 
-    def _save_jsonl(self, data: List[dict], filepath: Path):
-        with open(filepath, 'a', encoding='utf-8') as f:
-            for item in data:
-                f.write(json.dumps(item, ensure_ascii=False) + '\n')
-
-    def _load_historical_data(self, filepath: Path) -> pd.DataFrame:
-        if not filepath.exists():
-            return pd.DataFrame()
+    def _save_to_supabase(self, table: str, data: List[dict], progress_callback=None):
         try:
-            return pd.read_json(filepath, lines=True)
+            from src.database.client import get_supabase_client
+            supabase = get_supabase_client()
+            
+            # The Supabase Python client can insert lists of dicts
+            response = supabase.table(table).insert(data).execute()
+        except Exception as e:
+            logger.error(f"Error saving to Supabase table {table}: {e}")
+            if progress_callback: progress_callback(f"Failed to save to database: {e}")
+
+    def _load_historical_data(self) -> pd.DataFrame:
+        """Loads historical processed data from Supabase."""
+        try:
+            from src.database.client import get_supabase_client
+            supabase = get_supabase_client()
+            response = supabase.table('reviews').select('*').order('date', desc=True).limit(5000).execute()
+            if response.data:
+                return pd.DataFrame(response.data)
+            return pd.DataFrame()
         except Exception as e:
             logger.error(f"Error loading historical data: {e}")
             return pd.DataFrame()
